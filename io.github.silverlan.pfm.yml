@@ -1,0 +1,92 @@
+app-id: io.github.silverlan.pfm
+runtime: org.freedesktop.Platform
+runtime-version: "23.08"
+sdk: org.freedesktop.Sdk
+
+command: io.github.silverlan.pfm.sh
+
+modules:
+  - name: download-prebuilt-binaries
+    buildsystem: simple
+    sources:
+      - type: archive
+        url: https://github.com/Silverlan/pragma/releases/download/nightly/pragma-lin64.tar.gz
+        sha256: '2f5ccce6db9eb836819350ea9d8b5d62778c0875dffdc484c0231ab7ce414624'
+        strip-components: 0
+    build-commands:
+    - cp -a ${FLATPAK_BUILDER_BUILDDIR}/. ${FLATPAK_DEST}/
+    - echo "FLATPAK_DEST: ${FLATPAK_DEST}"
+    - find "${FLATPAK_DEST}" -type f -print
+    - echo "pfm_automatic_updates_enabled \"0\"" >> ${FLATPAK_DEST}/cfg/client.cfg
+    - echo "pfm_sensitive_content_enabled \"0\"" >> ${FLATPAK_DEST}/cfg/client.cfg
+
+  - name: flatpak-resources
+    buildsystem: simple
+    sources:
+      - type: file
+        path: executables/io.github.silverlan.pfm.sh
+      - type: file
+        path: executables/io.github.silverlan.pfm.prad.sh
+      - type: file
+        path: executables/io.github.silverlan.pfm.pragma.sh
+      - type: file
+        path: executables/io.github.silverlan.pfm.pragma_server.sh
+      - type: file
+        path: executables/io.github.silverlan.pfm.render_raytracing.sh
+      - type: file
+        path: executables/io.github.silverlan.pfm.udm_convert.sh
+      - type: file
+        path: share/applications/io.github.silverlan.pfm.desktop
+      - type: file
+        path: share/applications/io.github.silverlan.pfm.prad.desktop
+      - type: file
+        path: share/applications/io.github.silverlan.pfm.pragma.desktop
+      - type: file
+        path: share/applications/io.github.silverlan.pfm.pragma_server.desktop
+      - type: file
+        path: share/applications/io.github.silverlan.pfm.render_raytracing.desktop
+      - type: file
+        path: share/applications/io.github.silverlan.pfm.udm_convert.desktop
+
+      - type: file
+        path: share/applications/io.github.silverlan.pfm.svg
+      #- type: dir
+      #  path: install
+      #  dest: install
+    build-commands:
+    - install -Dm755 ${FLATPAK_ID}.sh -t /app/bin
+    - install -Dm755 ${FLATPAK_ID}.prad.sh -t /app/bin
+    - install -Dm755 ${FLATPAK_ID}.pragma.sh -t /app/bin
+    - install -Dm755 ${FLATPAK_ID}.pragma_server.sh -t /app/bin
+    - install -Dm755 ${FLATPAK_ID}.render_raytracing.sh -t /app/bin
+    - install -Dm755 ${FLATPAK_ID}.udm_convert.sh -t /app/bin
+
+    - install -Dm644 ${FLATPAK_ID}.desktop -t /app/share/applications
+    - install -Dm644 ${FLATPAK_ID}.prad.desktop -t /app/share/applications
+    - install -Dm644 ${FLATPAK_ID}.pragma.desktop -t /app/share/applications
+    - install -Dm644 ${FLATPAK_ID}.pragma_server.desktop -t /app/share/applications
+    - install -Dm644 ${FLATPAK_ID}.render_raytracing.desktop -t /app/share/applications
+    - install -Dm644 ${FLATPAK_ID}.udm_convert.desktop -t /app/share/applications
+
+    - install -Dm644 ${FLATPAK_ID}.svg -t /app/share/icons/hicolor/scalable/apps
+
+    #- cp -a install/. /app/
+
+finish-args:
+  # File system access
+  - --filesystem=~/.config/pfm
+  - --filesystem=~/snap/steam/common/.local/share/Steam:ro
+  - --filesystem=~/.steam/root:ro
+
+  - --share=ipc
+  - --socket=pulseaudio
+
+  # GPU access for OpenGL / DRI
+  - --device=dri
+
+  # Let the app talk to X11 OR Wayland compositors
+  - --socket=fallback-x11
+  - --socket=wayland
+
+  # Network access (online assets)
+  - --share=network
