@@ -74,7 +74,6 @@ modules:
 
 finish-args:
   # File system access
-  - --filesystem=~/.config/pfm
   - --filesystem=~/snap/steam/common/.local/share/Steam:ro
   - --filesystem=~/.steam/root:ro
 
