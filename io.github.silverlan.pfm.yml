@@ -47,6 +47,8 @@ modules:
         path: share/applications/io.github.silverlan.pfm.render_raytracing.desktop
       - type: file
         path: share/applications/io.github.silverlan.pfm.udm_convert.desktop
+      - type: file
+        path: share/applications/render_raytracing.sh
 
       - type: file
         path: share/applications/io.github.silverlan.pfm.svg
@@ -71,6 +73,10 @@ modules:
     - install -Dm644 ${FLATPAK_ID}.svg -t /app/share/icons/hicolor/scalable/apps
 
     #- cp -a install/. /app/
+    # Overwrite existing render_raytracing.sh
+    - install -Dm755 render_raytracing.sh -t /app/lib
+
+
 
 finish-args:
   # File system access
