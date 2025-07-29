@@ -83,6 +83,15 @@ finish-args:
   - --filesystem=~/snap/steam/common/.local/share/Steam:ro
   - --filesystem=~/.steam/root:ro
 
+  # We need to be able to write to DaVinciResolve's script directory, which may be any of these
+  - --filesystem=~/.local/share/DaVinciResolve/Fusion/Scripts/Utility:create
+  - --filesystem=/opt/resolve/Fusion/Scripts/Utility:create
+  - --filesystem=/home/resolve/Fusion/Scripts/Utility:create
+
+  # Required for launching DaVinciResolve
+  # - --filesystem=/opt/resolve/bin/resolve:ro
+  # - --talk-name=org.freedesktop.Flatpak
+
   - --share=ipc
   - --socket=pulseaudio
 
