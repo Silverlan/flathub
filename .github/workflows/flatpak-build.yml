@@ -1,0 +1,64 @@
+name: Test
+on:
+  push:
+    branches:
+      - test
+  pull_request:
+
+concurrency:
+  group: check-build-lin-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # See https://github.com/git-lfs/git-lfs/issues/5749
+  GIT_CLONE_PROTECTION_ACTIVE: 'false'
+
+jobs:
+  build:
+    name: Build - ${{ matrix.config.os }}
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - os: ubuntu-latest
+            name: "Ubuntu Latest"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v3
+
+      - name: PRE FLATPAKBUILDER DISK SPACE
+        shell: bash
+        run:   |
+          echo "PRE AVAILABLE DISK SPACE:"
+          df -h
+
+      - name: Install Flatpak-Builder
+        shell: bash
+        run:   |
+          sudo apt update
+          sudo apt install flatpak flatpak-builder
+          flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+      #- uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+      #  with:
+      #    bundle: palette.flatpak
+      #    manifest-path: com.silverlan.PFM.yml
+      #    cache-key: flatpak-builder-${{ github.sha }}
+      #    arch: x86_64
+      #    verbose: true
+
+      - name: Flatpak Build
+        shell: bash
+        run:   |
+          flatpak-builder \
+            --force-clean \
+            --user \
+            --install-deps-from=flathub \
+            --repo=repo \
+            builddir io.github.silverlan.pfm.yml
+
+      - name: Handle Error
+        uses: Silverlan/common_actions/action_handle_error@main
+        if: failure()
+
+        
