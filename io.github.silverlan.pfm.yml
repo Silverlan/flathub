@@ -475,6 +475,9 @@ modules:
         export PATH="${FLATPAK_DEST}/usr/bin:$PATH"
         cd pragma
         echo "Configuring pragma in $PWD"
+        echo "--------- ALL FILES ---------"
+        ls -r
+        echo "--------- ALL FILES ---------"
         python build_scripts/build.py --with-pfm --with-all-pfm-modules --with-vr --with-swiftshader --no-sudo --no-confirm --deps-directory=${targetRoot}/deps/ --build-tools-directory=${targetRoot}/build_tools/ --install-directory=${targetRoot}/install --no-build-networking --cmake-arg=-DCMAKE_C_COMPILER=${FLATPAK_DEST}/build_tools/clang/bin/clang --cmake-arg=-DCMAKE_CXX_COMPILER=${FLATPAK_DEST}/build_tools/clang/bin/clang++
 
   # Extracted gcc to /app/deps/staging/gcc
