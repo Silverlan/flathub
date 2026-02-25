@@ -5,20 +5,494 @@ sdk: org.freedesktop.Sdk
 
 command: io.github.silverlan.pfm.sh
 
+build-options:
+  # make sure strip is disabled
+  strip: false
+  # disable debug‑info extraction so symbols stay in the main binaries
+  no-debuginfo: true
+
 modules:
-  - name: download-prebuilt-binaries
+  - name: cmake
     buildsystem: simple
     sources:
       - type: archive
-        url: https://github.com/Silverlan/pragma/releases/download/nightly/pragma-lin64.tar.gz
-        sha256: '2f5ccce6db9eb836819350ea9d8b5d62778c0875dffdc484c0231ab7ce414624'
+        url: https://github.com/Kitware/CMake/releases/download/v4.2.3/cmake-4.2.3-linux-x86_64.tar.gz
+        sha256: '5bb505d5e0cca0480a330f7f27ccf52c2b8b5214c5bba97df08899f5ef650c23'
         strip-components: 0
     build-commands:
-    - cp -a ${FLATPAK_BUILDER_BUILDDIR}/. ${FLATPAK_DEST}/
-    - echo "FLATPAK_DEST: ${FLATPAK_DEST}"
-    - find "${FLATPAK_DEST}" -type f -print
-    - echo "pfm_automatic_updates_enabled \"0\"" >> ${FLATPAK_DEST}/cfg/client.cfg
-    - echo "pfm_sensitive_content_enabled \"0\"" >> ${FLATPAK_DEST}/cfg/client.cfg
+      - mkdir -p ${FLATPAK_DEST}/usr
+      - cp -r cmake-4.2.3-linux-x86_64/bin cmake-4.2.3-linux-x86_64/share ${FLATPAK_DEST}/usr/
+      - chmod -R a+rX ${FLATPAK_DEST}/usr/bin ${FLATPAK_DEST}/usr/share
+      - rm -rf cmake-4.2.3-linux-x86_64
+
+  - name: clang
+    buildsystem: simple
+    sources:
+      - type: archive
+        url: https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.0-rc1/LLVM-22.1.0-rc1-Linux-X64.tar.xz
+        sha256: 'e6007fb39e502293eeccde21d7e16f9c9d1fbfaf2dd3ccaefe2b7987c2b52657'
+        strip-components: 0
+    build-commands:
+      - |
+        chmod -R a+rX LLVM-22.1.0-rc1-Linux-X64/bin
+        targetRoot=${FLATPAK_DEST}
+        mkdir -p ${targetRoot}/build_tools
+        mv LLVM-22.1.0-rc1-Linux-X64 ${targetRoot}/build_tools/clang
+      
+  - name: gcc
+    buildsystem: simple
+    sources:
+      - type: archive
+        url: https://github.com/Silverlan/gcc_prebuilt/releases/download/c3fa37ceeb5-releases-gcc-15/gcc-15.2.1-releases-gcc-15.tar.xz
+        sha256: 'df5a22907bd814c8cbc5770b5c1cc2ddd9f83ca4f7bf667d4387c8295e91da00'
+        strip-components: 0
+    build-commands:
+      - |
+        targetRoot=${FLATPAK_DEST}
+        mkdir -p ${targetRoot}/build_tools
+        cp -r gcc ${targetRoot}/build_tools/
+        chmod -R a+rX ${targetRoot}/build_tools/gcc/bin
+        cat > "${targetRoot}/build_tools/gcc/version.json" <<'EOF'
+        {
+          "version": "c3fa37ceeb5-releases-gcc-15"
+        }
+        EOF
+        rm -rf gcc-15.2.1-releases-gcc-15.tar.xz
+        echo "Extracted gcc to ${targetRoot}/build_tools/gcc/"
+
+  - name: third-party-deps
+    buildsystem: simple
+    sources:
+      - type: file
+        url: https://github.com/Silverlan/pragma-deps-lib/releases/download/2026-01-19/lib-linux-x64-clang.tar.gz
+        sha256: '9d590391b9ac40c338640cdf11517926be8d47e06820e63c2b7acdd94b9207a0'
+        dest: deps/staging
+    build-commands:
+      - |
+        targetRoot=${FLATPAK_DEST}
+        mkdir -p ${targetRoot}/deps/staging
+        tar -xzf deps/staging/lib-linux-x64-clang.tar.gz -C ${targetRoot}/deps/staging
+        cat > "${targetRoot}/deps/staging/version.json" <<'EOF'
+        {
+          "version": "2026-01-19-clang"
+        }
+        EOF
+        rm -f deps/staging/lib-linux-x64-clang.tar.gz
+        echo "Extracted deps to ${targetRoot}/deps/staging/"
+
+  - name: pragma
+    buildsystem: simple
+    sources:
+      # copy a local directory
+      #- type: dir
+      #  path: /mnt/LinuxData/pragma_develop/
+      #  dest: pragma
+      #  skip:
+      #    - build
+      #    - deps
+      - type: git
+        url: https://github.com/Silverlan/pragma
+        commit: effa419a57db5f8c5e3a000044d17b33bdd9b304
+        dest: 'pragma'
+
+      - type: git
+        url: https://github.com/madmann91/bvh
+        commit: ac41ab8
+        dest: 'pragma/third_party_libs/bvh'
+      - type: git
+        url: https://github.com/ArashPartow/exprtk
+        commit: f46bffcd6966d38a09023fb37ba9335214c9b959
+        dest: 'pragma/third_party_libs/exprtk'
+      - type: git
+        url: https://github.com/aseprite/freetype2
+        commit: 9a2d6d97b2d8a5d22d02948b783df12b764afa2d
+        dest: 'pragma/third_party_libs/freetype'
+      - type: git
+        url: https://github.com/Silverlan/miniball
+        commit: 609fbf16e7a9cc3dc8f88e4d1c7a1d8ead842bb1
+        dest: 'pragma/third_party_libs/miniball'
+      - type: git
+        url: https://github.com/Silverlan/spdlog
+        commit: d1ebfb9
+        dest: 'pragma/third_party_libs/spdlog'
+      - type: git
+        url: https://github.com/ivan-kulikov-dev/squish
+        commit: aeb01b8f88f97c994baff8453870f3e8a347afd7
+        dest: 'pragma/third_party_libs/squish'
+      - type: git
+        url: https://github.com/Silverlan/luabind-deboostified
+        commit: 38b223d4a8538d08f7ddded7989f4297aa74ee6d
+        dest: 'pragma//third_party_libs/luabind'
+      - type: git
+        url: https://github.com/SpartanJ/efsw
+        commit: 1bb814c
+        dest: 'pragma//third_party_libs/efsw'
+      - type: git
+        url: https://github.com/Silverlan/mpaheader
+        commit: ebb53b9ae31c99dad8da2ce9024c37d4c26ce685
+        dest: 'pragma//third_party_libs/mpaheader'
+      - type: git
+        url: https://github.com/Silverlan/linenoise.cpp
+        commit: 74ae32ebf22d18a7e22afe1eeecf04171311ebcf
+        dest: 'pragma//third_party_libs/linenoise.cpp'
+      - type: git
+        url: https://github.com/Silverlan/VKVParser
+        commit: 380f5527ec57ac7ce540da67a86a23dbfdb593d9
+        dest: 'pragma//third_party_libs/vkvparser'
+      - type: git
+        url: https://github.com/Silverlan/gli
+        commit: 2938076944739166235750f3ccdce37c6cac2d31
+        dest: 'pragma/third_party_libs/gli'
+      - type: git
+        url: https://github.com/Silverlan/muparserx
+        commit: 910f6128494e174c3de81bd34c3d938b47873c08
+        dest: 'pragma//third_party_libs/muparserx'
+      - type: git
+        url: https://github.com/Silverlan/clip2tri.git
+        commit: a6bbeee8a29604faaff4e43e45e3d25b8b80ca5f
+        dest: 'pragma//third_party_libs/clip2tri'
+      - type: git
+        url: https://gitlab.com/libeigen/eigen.git
+        commit: b66188b5
+        dest: 'pragma/third_party_libs/eigen'
+      - type: git
+        url: https://github.com/Silverlan/glfw
+        commit: 8d6f5d9bc8477057dccc1190d46b0945219e2f33
+        dest: 'pragma//third_party_libs/glfw'
+      - type: git
+        url: https://github.com/xiph/ogg
+        commit: be05b13
+        dest: 'pragma//third_party_libs/ogg'
+      - type: git
+        url: https://github.com/xiph/vorbis
+        commit: 43bbff0141028e58d476c1d5fd45dd5573db576d
+        dest: 'pragma//third_party_libs/vorbis'
+      - type: git
+        url: https://github.com/Silverlan/bzip2
+        commit: 6f08ffc2409d34a8f0f06ab3b0291bced4e9d08c
+        dest: 'pragma//third_party_libs/bzip2'
+      - type: git
+        url: https://github.com/Silverlan/libnoise.git
+        commit: 3481e28d14854adc82682f4999c4f7cdeda9dce9
+        dest: 'pragma//third_party_libs/libnoise'
+      - type: git
+        url: https://github.com/sammycage/lunasvg
+        commit: 7b6970f
+        dest: 'pragma//third_party_libs/lunasvg'
+      - type: git
+        url: https://github.com/libsndfile/libsamplerate
+        commit: 15c392d
+        dest: 'pragma//third_party_libs/libsamplerate'
+      - type: git
+        url: https://github.com/Silverlan/VTFLib
+        commit: 756c44439ffe876d7f9066069072b319f3a7cb6d
+        dest: 'pragma//third_party_libs/vtflib'
+      - type: git
+        url: https://github.com/recastnavigation/recastnavigation
+        commit: 1078bfe346d9bb560faa748c8fde2e7aae73a3ab
+        dest: 'pragma//third_party_libs/recastnavigation'
+      - type: git
+        url: https://github.com/Silverlan/rectangle_bin_pack_cmake.git
+        commit: 3e45db4b84ddaaece60a0985cc93c84ae1d2587f
+        dest: 'pragma//third_party_libs/rectangle_bin_pack'
+      - type: git
+        url: https://github.com/discord/rapidxml
+        commit: 2ae4b2888165a393dfb6382168825fddf00c27b9
+        dest: 'pragma/third_party_libs/rapidxml'
+      - type: git
+        url: https://github.com/Silverlan/OpenFBX
+        commit: 2ea6f85cf7473738a016223974ca4320c724e3b4
+        dest: 'pragma//third_party_libs/openfbx'
+      - type: git
+        url: https://github.com/syoyo/tinygltf
+        commit: 37250b3
+        dest: 'pragma//third_party_libs/tinygltf'
+      - type: git
+        url: https://github.com/Silverlan/alsoundsystem.git
+        commit: b4a1c80e3952f5be8eaa5a60903d366bfd4fafdf
+        dest: 'pragma/external_libs/alsoundsystem'
+      - type: git
+        url: https://github.com/Silverlan/datasystem
+        commit: 0feba2d2a0036d58c144ade31a6fe9f49a582626
+        dest: 'pragma/external_libs/datasystem'
+      - type: git
+        url: https://github.com/Silverlan/iglfw
+        commit: acb72da92badbfd50375ae1fa245f389a3715920
+        dest: 'pragma/external_libs/iglfw'
+      - type: git
+        url: https://github.com/Silverlan/luasystem
+        commit: 274f3e8d6f1217667d7c1a268d7acfa9a78acc74
+        dest: 'pragma/external_libs/luasystem'
+      - type: git
+        url: https://github.com/Silverlan/materialsystem
+        commit: f118c5a721d48ba85f8827326fa2bd5398eeb3ea
+        dest: 'pragma/external_libs/materialsystem'
+      - type: git
+        url: https://github.com/Silverlan/mathutil
+        commit: 27fa92ba59e79f619f8bb29d8e62b53d1607f4d4
+        dest: 'pragma/external_libs/mathutil'
+      - type: git
+        url: https://github.com/Silverlan/networkmanager
+        commit: 307e83426280669624ee25f8e3058af96e4e0db3
+        dest: 'pragma/external_libs/networkmanager'
+      - type: git
+        url: https://github.com/Silverlan/oskit
+        commit: 2c13e0963ef719d8c3a806f5c4ea0e151db58367
+        dest: 'pragma/external_libs/oskit'
+      - type: git
+        url: https://github.com/Silverlan/panima
+        commit: 8faebe12b47542657adaec8afc95baff327f452f
+        dest: 'pragma/external_libs/panima'
+      - type: git
+        url: https://github.com/Silverlan/prosper
+        commit: d9e4fe85af77ef9967540e44d9ba6fa540bb6cf2
+        dest: 'pragma/external_libs/prosper'
+      - type: git
+        url: https://github.com/Silverlan/sharedutils
+        commit: caea3e3c4cdcf54455906395aec8f0eec3690849
+        dest: 'pragma/external_libs/sharedutils'
+      - type: git
+        url: https://github.com/Silverlan/util_bsp
+        commit: 9eeb876a6fafe1b92966bb8f0fe6bd93ebb7b41f
+        dest: 'pragma/external_libs/util_bsp'
+      - type: git
+        url: https://github.com/Silverlan/util_formatted_text
+        commit: 50bd69695d55a61d9ecab8c3453a88fd8bc17a99
+        dest: 'pragma/external_libs/util_formatted_text'
+      - type: git
+        url: https://github.com/Silverlan/util_image
+        commit: 61a4b1ebbf98c57cf9cee88c2c3f4cd91165c21e
+        dest: 'pragma/external_libs/util_image'
+      - type: git
+        url: https://github.com/Silverlan/util_pad
+        commit: 9f353dbad247e742a67f87b171dd30810f908b66
+        dest: 'pragma/external_libs/util_pad'
+      - type: git
+        url: https://github.com/Silverlan/util_pragma_doc
+        commit: e235cea9acf0e59eefabf7027aff3315753991db
+        dest: 'pragma/external_libs/util_pragma_doc'
+      - type: git
+        url: https://github.com/Silverlan/util_smdmodel
+        commit: d56004a9920e1477a19d45bdfc76ccfa605caaf0
+        dest: 'pragma/external_libs/util_smdmodel'
+      - type: git
+        url: https://github.com/Silverlan/util_sound
+        commit: e1652c5b4bb8a18b9cc545862810959f42f90d13
+        dest: 'pragma/external_libs/util_sound'
+      - type: git
+        url: https://github.com/Silverlan/util_source2
+        commit: 2a5c5218dd6551ad91557adac2add0aa168e27c7
+        dest: 'pragma/external_libs/util_source2'
+      - type: git
+        url: https://github.com/Silverlan/util_string
+        commit: bd9d2f22e01ae68bef47d8efd8dc719a089f3a60
+        dest: 'pragma/external_libs/util_string'
+      - type: git
+        url: https://github.com/Silverlan/util_source_script
+        commit: 82e7537a2b562d036492568bc61be3e93507c380
+        dest: 'pragma/external_libs/util_source_script'
+      - type: git
+        url: https://github.com/Silverlan/util_timeline_scene
+        commit: 6092f5ebeef6be95dc9553fe32dd424cc9af92b6
+        dest: 'pragma/external_libs/util_timeline_scene'
+      - type: git
+        url: https://github.com/Silverlan/util_udm
+        commit: c5c6ed3d258d074a076ae1e0d2cf97c6ead02929
+        dest: 'pragma/external_libs/util_udm'
+      - type: git
+        url: https://github.com/Silverlan/util_versioned_archive
+        commit: 0b0e419a112f654c2fdc27e0660309afc4c581b8
+        dest: 'pragma/external_libs/util_versioned_archive'
+      - type: git
+        url: https://github.com/Silverlan/util_vmf
+        commit: 346aaeb9446349371010423e9a39a31c7cd35afc
+        dest: 'pragma/external_libs/util_vmf'
+      - type: git
+        url: https://github.com/Silverlan/util_zip
+        commit: a8b0b3e1e126849b929ea04f4fe9afeb2b40cdc7
+        dest: 'pragma/external_libs/util_zip'
+      - type: git
+        url: https://github.com/Silverlan/util_shadergraph
+        commit: 5a7ff01fb4e51bc599eeae5126098e8cd826a0b5
+        dest: 'pragma/external_libs/util_shadergraph'
+      - type: git
+        url: https://github.com/Silverlan/vfilesystem
+        commit: 9a135bde2c2032f3bd919c1d9637eb9383336c50
+        dest: 'pragma/external_libs/vfilesystem'
+      - type: git
+        url: https://github.com/Silverlan/wgui
+        commit: d697f5e2d6d82e1d6a5a8ec4ed9949e97d58948a
+        dest: 'pragma/external_libs/wgui'
+      - type: git
+        url: https://github.com/Silverlan/util_unicode
+        commit: 5f0519049aecfd52e02ffbabeb84d735d027d9f0
+        dest: 'pragma/external_libs/util_unicode'
+      - type: git
+        url: https://github.com/Silverlan/cppbezierfit
+        commit: 63dbcaeddba39c80b885fd7eadbbbad560bc1791
+        dest: 'pragma/external_libs/cppbezierfit'
+      - type: git
+        url: https://github.com/Silverlan/pragma_interfaces.git
+        commit: adda2aba1fbf570cf5f251ec5c1a503bab89544b
+        dest: 'pragma//modules/interfaces'
+      - type: git
+        url: https://github.com/Silverlan/pr_prosper_vulkan.git
+        commit: de9237173562903f9e3ae06b183505f214d68a60
+        dest: 'pragma//modules/pr_prosper_vulkan'
+      - type: git
+        url: https://github.com/Silverlan/pr_nsight_aftermath.git
+        commit: 77d54ab8b4aa90362feb58f02d451f91ed91cd2d
+        dest: 'pragma//modules/pr_nsight_aftermath'
+      - type: git
+        url: https://github.com/Silverlan/pr_bullet.git
+        commit: 31f97cf2535d42fe61964e0767912670ac8fda76
+        dest: 'pragma//modules/pr_bullet'
+      - type: git
+        url: https://github.com/Silverlan/pr_soloud.git
+        commit: 6e2b627232abc0410d92c614f767ca4759c0104a
+        dest: 'pragma//modules/pr_audio_soloud'
+      - type: git
+        url: https://github.com/Silverlan/pr_audio_dummy.git
+        commit: c54a035cf61f4c47f88bd6274e43e54054e6cb21
+        dest: 'pragma//modules/pr_audio_dummy'
+      - type: git
+        url: https://github.com/Silverlan/pr_prosper_opengl.git
+        commit: 6d79e77069149593b0dcf59e63084c835f438b65
+        dest: 'pragma//modules/pr_prosper_opengl'
+      - type: git
+        url: https://github.com/Silverlan/pr_curl.git
+        commit: ede447cae6703b9ebf226f3dab8d06a8d4b9a021
+        dest: 'pragma//modules/pr_curl'
+      - type: git
+        url: https://github.com/Silverlan/pr_dmx.git
+        commit: 60477b5c8aca757af16f531258b76b50e9887798
+        dest: 'pragma//modules/pr_dmx'
+      - type: git
+        url: https://github.com/Silverlan/pr_chromium.git
+        commit: d9d5f0d6be91feacd125570a0c3846678b967742
+        dest: 'pragma//modules/pr_chromium'
+      - type: git
+        url: https://github.com/Silverlan/pr_cycles.git
+        commit: d571d410a144561c8435b86696338e015e4e1e63
+        dest: 'pragma//modules/pr_unirender'
+      - type: git
+        url: https://github.com/Silverlan/pr_xatlas.git
+        commit: 06013606c4efa7a9e7e96fc61af59d142c494daf
+        dest: 'pragma//modules/pr_xatlas'
+      - type: git
+        url: https://github.com/Silverlan/pr_davinci.git
+        commit: dac2ff0e771ee1ad03490ea11e9b55d6bb9ca6ae
+        dest: 'pragma//modules/pr_davinci'
+      - type: git
+        url: https://github.com/Silverlan/pr_opencv.git
+        commit: 83e71b956793de6e317f1f2aa960bf5039ec17fe
+        dest: 'pragma//modules/pr_opencv'
+      - type: git
+        url: https://github.com/Silverlan/pr_git.git
+        commit: d67ae478c835cdb4ad35f12dc7a2ee5c018d7a14
+        dest: 'pragma//modules/pr_git'
+      - type: git
+        url: https://github.com/Silverlan/pr_openvr.git
+        commit: 1f84e606d379e888b53edf5f90861f7a6d27487f
+        dest: 'pragma//modules/pr_openvr'
+      - type: git
+        url: https://github.com/Silverlan/pr_steam_networking_sockets.git
+        commit: fa07a15165fba6c0dd109ce0ab508e535d9f082e
+        dest: 'pragma//modules/pr_steam_networking_sockets'
+      - type: git
+        url: https://github.com/Silverlan/pr_nsight_aftermath
+        commit: 52231161cfd48511ca797e266a1e7cf684b1806b
+        dest: 'pragma/modules/pr_prosper_vulkan/modules/pr_nsight_aftermath'
+      - type: git
+        url: https://github.com/Silverlan/util_dmx
+        commit: b0285681651fa9d3b5952e478db22ff293ca1a0c
+        dest: 'pragma/external_libs/util_dmx'
+      - type: git
+        url: https://github.com/Silverlan/util_ocio
+        commit: 2ba870769ae06e2da95e1bda540f9304d93384cc
+        dest: 'pragma/external_libs/util_ocio'
+      - type: git
+        url: https://github.com/Silverlan/UniRender
+        commit: 67c63c2c5ceca84d273a895d7bf11d43d0a23e27
+        dest: 'pragma/external_libs/util_raytracing'
+      - type: git
+        url: https://github.com/Silverlan/render_raytracing
+        commit: 7e9212d1fdde5a97f743ef7132ae495b67e279ee
+        dest: 'pragma/tools/render_raytracing'
+      - type: git
+        url: https://github.com/Silverlan/pfm.git
+        commit: 47e4a44aa8e7490774b88973dfdbcc285a633312
+        dest: '_deps/addon_pfm'
+      - type: git
+        url: https://github.com/Silverlan/pragma_model_editor.git
+        commit: 3147f31cf902f718255a4e42ef95b33184e8f88b
+        dest: '_deps/addon_model_editor'
+      - type: git
+        url: https://github.com/Silverlan/pfm_demo_living_room.git
+        commit: 4cbecad4a2d6f502b6d9709178883678101f7e2c
+        dest: '_deps/addon_pfm_demo_living_room'
+      - type: git
+        url: https://github.com/Silverlan/pfm_demo_bedroom.git
+        commit: 0fed1d5b54a25c3ded2ce906e7da80ca8dd2fb0d
+        dest: '_deps/addon_pfm_demo_bedroom'
+      - type: git
+        url: https://github.com/Silverlan/pfm_tutorials.git
+        commit: 86e567e8ef3faa0fff0ceea601871b11ac028b78
+        dest: '_deps/addon_pfm_tutorials'
+      - type: git
+        url: https://github.com/Silverlan/PragmaVR.git
+        commit: 2d5360ac6cafefaecb5bf2b5078bad191e7ecc57
+        dest: '_deps/addon_virtual_reality'
+      - type: git
+        url: https://github.com/Silverlan/pragma_hl.git
+        commit: 4f42a0ab6b71b3b5b458bffca6cdc0fcb0de83ea
+        dest: '_deps/addon_pragma_hl'
+      - type: git
+        url: https://github.com/Silverlan/pragma_tf2.git
+        commit: 1b36edc5804c87fde129e94c38fa52b2fd845e42
+        dest: '_deps/addon_pragma_tf2'
+      - type: git
+        url: https://github.com/Silverlan/pragma_matcaps.git
+        commit: 304800623fc6c07901053fb41428fa2c430f2d0d
+        dest: '_deps/addon_matcaps'
+      - type: archive
+        url: https://github.com/Silverlan/pr_mount_external_prebuilt/releases/download/2026-01-19/binaries-linux-x64-clang.tar.gz
+        sha256: a785333793c27b6fe5e2aa2dd84b6d0a169b02afedb3c4eaa08977e7f518d1c0
+        dest: '_deps/addon_mount_external'
+      - type: archive
+        url: https://github.com/Silverlan/pr_rig_prebuilt/releases/download/2026-01-20/binaries-linux-x64-clang.tar.gz
+        sha256: 04c7a1de1163e21bc266a477e514d3f3bb7c0d8902c99df42a661057b4dfd375
+        dest: '_deps/addon_rig'
+      - type: archive
+        url: https://github.com/Silverlan/pr_ik_prebuilt/releases/download/2026-01-20/binaries-linux-x64-clang.tar.gz
+        sha256: 2bc1a6c69bf2084528c41acaa8b729355c998fecf285cae121e5947d724c854b
+        dest: '_deps/addon_ik'
+    build-commands:
+      - |
+        targetRoot=${FLATPAK_DEST}
+        curDir=$PWD
+
+        export PATH="${FLATPAK_DEST}/usr/bin:$PATH"
+        cd pragma
+        echo "Configuring pragma in $PWD"
+        python build_scripts/build.py --with-pfm --with-all-pfm-modules --with-vr --with-swiftshader --no-sudo --no-confirm --deps-directory=${targetRoot}/deps/ --build-tools-directory=${targetRoot}/build_tools/ --install-directory=${targetRoot}/install --no-build-networking --cmake-arg=-DCMAKE_C_COMPILER=${FLATPAK_DEST}/build_tools/clang/bin/clang --cmake-arg=-DCMAKE_CXX_COMPILER=${FLATPAK_DEST}/build_tools/clang/bin/clang++
+
+  # Extracted gcc to /app/deps/staging/gcc
+  # PWD: /run/build/pragma
+
+  #- name: download-prebuilt-binaries
+  #  buildsystem: simple
+  #  sources:
+  #    - type: archive
+  #      url: https://github.com/Silverlan/pragma/releases/download/nightly/pragma-lin64.tar.gz
+  #      sha256: '160adba736067c88a621b66f77edd7a9ce529a238bc128b509e68152421b01eb4'
+  #      strip-components: 0
+  #  build-commands:
+  #  - cp -a ${FLATPAK_BUILDER_BUILDDIR}/. ${FLATPAK_DEST}/
+  #  - echo "FLATPAK_DEST: ${FLATPAK_DEST}"
+  #  - find "${FLATPAK_DEST}" -type f -print
+  #  - echo "pfm_automatic_updates_enabled \"0\"" >> ${FLATPAK_DEST}/cfg/client.cfg
+  #  - echo "pfm_sensitive_content_enabled \"0\"" >> ${FLATPAK_DEST}/cfg/client.cfg
 
   - name: flatpak-resources
     buildsystem: simple
@@ -52,9 +526,9 @@ modules:
 
       - type: file
         path: share/applications/io.github.silverlan.pfm.svg
-      #- type: dir
-      #  path: install
-      #  dest: install
+      - type: dir
+        path: install
+        dest: install
     build-commands:
     - install -Dm755 ${FLATPAK_ID}.sh -t /app/bin
     - install -Dm755 ${FLATPAK_ID}.prad.sh -t /app/bin
@@ -72,7 +546,7 @@ modules:
 
     - install -Dm644 ${FLATPAK_ID}.svg -t /app/share/icons/hicolor/scalable/apps
 
-    #- cp -a install/. /app/
+    - cp -a install/. /app/
     # Overwrite existing render_raytracing.sh
     - install -Dm755 render_raytracing.sh -t /app/lib
 
