@@ -92,7 +92,7 @@ modules:
       #    - deps
       - type: git
         url: https://github.com/Silverlan/pragma
-        commit: effa419a57db5f8c5e3a000044d17b33bdd9b304
+        commit: aa412dc2307526a500f67512b516fdb10955137d
         dest: 'pragma'
 
       - type: git
